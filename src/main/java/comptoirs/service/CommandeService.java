@@ -3,6 +3,7 @@ package comptoirs.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+import comptoirs.entity.Produit;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
@@ -104,33 +105,50 @@ public class CommandeService {
      * @throws jakarta.validation.ConstraintViolationException si la quantité n'est
      *                                                         pas positive
      */
-    @Transactional
-    public Ligne ajouterLigne(int commandeNum, int produitRef, @Positive int quantite) {
-        // TODO : implémenter cette méthode
-        throw new UnsupportedOperationException("Pas encore implémenté");
-    }
+  @Transactional
+public Ligne ajouterLigne(int commandeNum, int produitRef, @Positive int quantite) {
+    Produit produit = produitDao.findById(produitRef).orElseThrow();
+    if (produit.isIndisponible()) throw new IllegalStateException("Le produit n'est pas disponible");
+    if (produit.getUnitesCommandees()<quantite+produit.getUnitesCommandees()) throw new IllegalStateException("Il y a pas assez");
 
-    /**
-     * Service métier : Enregistre l'expédition d'une commande connue par sa clé
-     * Règles métier :
-     * - la commande doit exister
-     * - la commande ne doit pas être déjà envoyée (le champ 'envoyeele' doit être
-     * null)
-     * - On renseigne la date d'expédition (envoyeele) avec la date du jour
-     * - Pour chaque produit dans les lignes de la commande :
-     * décrémente la quantité en stock (Produit.unitesEnStock) de la quantité dans
-     * la commande
-     * décrémente la quantité commandée (Produit.unitesCommandees) de la quantité
-     * dans la commande
-     *
-     * @param commandeNum la clé de la commande
-     * @return la commande mise à jour
-     * @throws java.util.NoSuchElementException si la commande n'existe pas
-     * @throws IllegalStateException            si la commande a déjà été envoyée
-     */
-    @Transactional
-    public Commande enregistreExpedition(int commandeNum) {
-        // TODO : implémenter cette méthode
-        throw new UnsupportedOperationException("Pas encore implémenté");
-    }
+    Commande commande = commandeDao.findById(commandeNum).orElseThrow();
+     if (commande.getEnvoyeele() != null) throw  new IllegalStateException("Le commandes est déja envoyer");
+     Ligne ligne = new Ligne(commande, produit, quantite);
+     ligneDao.save(ligne);
+     produit.setUnitesCommandees(produit.getUnitesCommandees() - quantite);
+     produit.setUnitesCommandees(produit.getUnitesEnStock() - quantite);
+     return ligne;
+}
+
+/**
+ * Service métier : Enregistre l'expédition d'une commande connue par sa clé
+ * Règles métier :
+ * - la commande doit exister
+ * - la commande ne doit pas être déjà envoyée (le champ 'envoyeele' doit être
+ * null)
+ * - On renseigne la date d'expédition (envoyeele) avec la date du jour
+ * - Pour chaque produit dans les lignes de la commande :
+ * décrémente la quantité en stock (Produit.unitesEnStock) de la quantité dans
+ * la commande
+ * décrémente la quantité commandée (Produit.unitesCommandees) de la quantité
+ * dans la commande
+ *
+ * @param commandeNum la clé de la commande
+ * @return la commande mise à jour
+ * @throws java.util.NoSuchElementException si la commande n'existe pas
+ * @throws IllegalStateException            si la commande a déjà été envoyée
+ */
+@Transactional
+public Commande enregistreExpedition(int commandeNum) {
+Commande commande = commandeDao.findById(commandeNum).orElseThrow();
+if (commande.getEnvoyeele() !=null) throw new IllegalStateException("Le commandes n'est pas disponible déja envoyer");
+
+commande.setEnvoyeele(LocalDate.now());
+for (Ligne ligne : commande.getLignes()) {
+    Produit produit = ligne.getProduit();
+    produit.setUnitesEnStock(produit.getUnitesEnStock()-ligne.getQuantite());
+    produit.setUnitesCommandees(produit.getUnitesCommandees()-ligne.getQuantite());
+}
+return commande;
+}
 }
